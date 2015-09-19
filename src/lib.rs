@@ -1,5 +1,4 @@
-#![feature(vec_push_all)]
-//#![feature(slice_bytes, convert)]
+use std::ptr;
 
 pub struct Buffer {
    data: Vec<u8>
@@ -25,36 +24,41 @@ impl Buffer {
     }
 
     #[inline(always)]
+    fn extend_back(&mut self, len: usize) -> &mut[u8] {
+        debug_assert!(len > 0);
+
+        let data_len = self.data.len();
+        self.data.reserve(len);
+        unsafe { self.data.set_len(data_len + len); }
+        return &mut self.data[data_len..];
+    }
+
+    #[inline(always)]
     pub fn push_all(&mut self, bytes: &[u8]) {
-        //use std::slice::bytes::copy_memory;
-        use std::ptr;
-
-        if bytes.is_empty() { return; }
-
-        let remaining = self.data.capacity() - self.data.len();
-        if remaining < bytes.len() {
-            let missing = bytes.len() - remaining;
-            self.data.reserve(missing);
-        }
-
-        unsafe {
-            let end = self.data.len();
-            self.data.set_len(end + bytes.len());
-            //copy_memory(bytes, &mut self.data[end..]);
-            ptr::copy_nonoverlapping(bytes.as_ptr(),
-                                     self.data[end..].as_mut_ptr(),
-                                     bytes.len());
-
+        let len = bytes.len();
+        if len > 0 {
+            let ext = self.extend_back(len);
+            unsafe {
+                ptr::copy_nonoverlapping(bytes.as_ptr(),
+                                         ext.as_mut_ptr(),
+                                         len);
+            }
         }
     }
 
     #[inline(always)]
     pub fn push_all_around(&mut self, around: u8, bytes: &[u8]) {
-       self.data.push(around);
-       self.data.push_all(bytes);
-       self.data.push(around);
-    }
+        let len = bytes.len();
+        let ext = self.extend_back(2 + len);
 
+        unsafe {
+            ptr::write(ext.as_mut_ptr(), around);
+            ptr::copy_nonoverlapping(bytes.as_ptr(),
+                                     ext.as_mut_ptr().offset(1),
+                                     len);
+            ptr::write(ext[1+len..].as_mut_ptr(), around);
+       }
+    }
 
     #[inline(always)]
     pub fn into_vec(self) -> Vec<u8> {
@@ -258,7 +262,6 @@ impl<'a> JsonObjectEncoder<'a> {
     pub fn encode_field_str(&mut self, name: &str, s: &str) {
         self.encode_field(name, |js| js.encode_str(s));
     }
-
 }
 
 pub struct JsonArrayEncoder<'a> {
@@ -330,4 +333,7 @@ fn test_json_obj_encoder() {
 
     let json = JsonEncoder::obj_single_str_field("total", "abcdef");
     assert_eq!(b"{\"total\":\"abcdef\"}", &json[..]);
+
+    let json = JsonEncoder::obj_single_str_field("total", "");
+    assert_eq!(b"{\"total\":\"\"}", &json[..]);
 }
