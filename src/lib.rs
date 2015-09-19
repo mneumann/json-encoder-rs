@@ -199,12 +199,17 @@ impl<'a> JsonArrayEncoder<'a> {
 
     #[inline(always)]
     pub fn encode_elm_i32(&mut self, val: i32) {
-        self.encode_elm(|j| j.encode_i32(val));
+        self.encode_elm(|js| js.encode_i32(val));
     }
 
     #[inline(always)]
     pub fn encode_elm_str(&mut self, s: &str) {
-        self.encode_elm(|j| j.encode_str(s));
+        self.encode_elm(|js| js.encode_str(s));
+    }
+
+    #[inline(always)]
+    pub fn encode_elm_obj<F:Fn(&mut JsonObjectEncoder)>(&mut self, f: F) {
+        self.encode_elm(|js| js.encode_obj(|jso| f(jso)));
     }
 }
 
