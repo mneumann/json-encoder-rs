@@ -18,6 +18,10 @@ impl JsonEncoder {
         self.buffer
     }
 
+    pub fn with_buf<F>(&mut self, f: F) where F: Fn(&mut Vec<u8>) {
+        f(&mut self.buffer);
+    }
+
     #[inline(always)]
     pub fn encode_raw_str(&mut self, raw_str: &str) {
         self.buffer.push_all(raw_str.as_bytes());
@@ -54,15 +58,15 @@ impl JsonEncoder {
         }
     }
 
-    pub fn encode_u64_decimal(&mut self, value: u64) {
+    pub fn encode_decimal_str(&mut self, value: u64) {
         self.buffer.push(b'"');
-        self._encode_u64_decimal(value);
+        self.encode_u64_decimal(value);
         self.buffer.push(b'"');
     }
 
     // encodes as decimal string
     #[inline(always)]
-    fn _encode_u64_decimal(&mut self, value: u64) {
+    fn encode_u64_decimal(&mut self, value: u64) {
         const CHARS: &'static [u8] = b"0123456789";
         const MAX_DIGITS: usize = 20;
         
