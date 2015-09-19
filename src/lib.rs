@@ -127,6 +127,15 @@ impl JsonEncoder {
         }
         self.buffer.push(b'}');
     }
+
+    pub fn encode_array<F>(&mut self, f: F) where F: Fn(JsonArrayEncoder) {
+        self.buffer.push(b'[');
+        {
+            f(JsonArrayEncoder {js: self, needs_sep: false});
+        }
+        self.buffer.push(b']');
+    }
+
 }
 
 pub struct JsonObjectEncoder<'a> {
@@ -135,12 +144,13 @@ pub struct JsonObjectEncoder<'a> {
 }
 
 impl<'a> JsonObjectEncoder<'a> {
-
     // XXX: name MAY NOT include escapable characters
     #[inline(always)]
     pub fn encode_field<F:Fn(&mut JsonEncoder)>(&mut self, name: &str, f: F) {
         if self.needs_sep {
             self.js.buffer.push(b',');
+        } else {
+            self.needs_sep = true;
         }
         self.js.buffer.push(b'"');
         self.js.encode_raw_str(name);
@@ -148,12 +158,31 @@ impl<'a> JsonObjectEncoder<'a> {
         self.js.buffer.push(b':');
 
         f(self.js);
-        self.needs_sep = true;
     }
 }
 
+pub struct JsonArrayEncoder<'a> {
+    js: &'a mut JsonEncoder,
+    needs_sep: bool,
+}
+
+impl<'a> JsonArrayEncoder<'a> {
+    #[inline(always)]
+    pub fn encode_elm<F:Fn(&mut JsonEncoder)>(&mut self, f: F) {
+        if self.needs_sep {
+            self.js.buffer.push(b',');
+        } else {
+            self.needs_sep = true;
+        }
+        f(self.js);
+    }
+}
+
+
 #[test]
 fn test_json_obj_encoder() {
+    use std::str;
+
     let mut js = JsonEncoder::new();
     js.encode_obj(|_|{});
     assert_eq!(b"{}", &js.into_vec()[..]);
@@ -170,4 +199,17 @@ fn test_json_obj_encoder() {
         jso.encode_field("next", |js| js.encode_str("abc"));
     });
     assert_eq!(b"{\"total\":31,\"next\":\"abc\"}", &js.into_vec()[..]);
+
+    let mut js = JsonEncoder::new();
+    js.encode_obj(|mut jso| {
+        jso.encode_field("total", |js| js.encode_i32(31));
+        jso.encode_field("next", |js| js.encode_str("abc"));
+        jso.encode_field("tags", |js| {
+                js.encode_array(|mut jsa| {
+                        jsa.encode_elm(|js| js.encode_i32(1));
+                        jsa.encode_elm(|js| js.encode_i32(2));
+                });
+        });
+    });
+    assert_eq!("{\"total\":31,\"next\":\"abc\",\"tags\":[1,2]}", str::from_utf8(&js.into_vec()[..]).unwrap());
 }
