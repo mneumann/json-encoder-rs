@@ -29,6 +29,14 @@ impl Buffer {
     }
 
     #[inline(always)]
+    pub fn push_all_around(&mut self, around: u8, bytes: &[u8]) {
+       self.data.push(around);
+       self.data.push_all(bytes);
+       self.data.push(around);
+    }
+
+
+    #[inline(always)]
     pub fn into_vec(self) -> Vec<u8> {
         self.data
     }
@@ -66,9 +74,7 @@ impl JsonEncoder {
 
     #[inline]
     pub fn encode_str_noescape(&mut self, raw_str: &str) {
-        self.buffer.push(b'"');
-        self.buffer.push_all(raw_str.as_bytes());
-        self.buffer.push(b'"');
+        self.buffer.push_all_around(b'"', raw_str.as_bytes());
     }
 
     #[inline]
@@ -103,21 +109,14 @@ impl JsonEncoder {
         }
     }
 
-    #[inline]
-    pub fn encode_decimal_str(&mut self, value: u64) {
-        self.buffer.push(b'"');
-        self.encode_u64_decimal(value);
-        self.buffer.push(b'"');
-    }
-
     // encodes as decimal string
     #[inline]
-    fn encode_u64_decimal(&mut self, value: u64) {
+    pub fn encode_decimal_str(&mut self, value: u64) {
         const CHARS: &'static [u8] = b"0123456789";
         const MAX_DIGITS: usize = 20;
         
         if value == 0 {
-            self.buffer.push(b'0');
+            self.buffer.push_all_around(b'"', b"0");
             return;
         }
 
@@ -130,7 +129,7 @@ impl JsonEncoder {
             n = n / 10;
         }
 
-        self.encode_raw(&digits[i..]);
+        self.buffer.push_all_around(b'"', &digits[i..]);
     }
 
     #[inline]
