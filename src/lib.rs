@@ -1,4 +1,4 @@
-#![feature(vec_push_all)]
+#![feature(vec_push_all, slice_bytes, convert)]
 
 pub struct Buffer {
    data: Vec<u8>
@@ -25,7 +25,21 @@ impl Buffer {
 
     #[inline(always)]
     pub fn push_all(&mut self, bytes: &[u8]) {
-       self.data.push_all(bytes);
+        use std::slice::bytes::copy_memory;
+
+        if bytes.is_empty() { return; }
+
+        let remaining = self.data.capacity() - self.data.len();
+        if remaining < bytes.len() {
+            let missing = bytes.len() - remaining;
+            self.data.reserve(missing);
+        }
+
+        unsafe {
+            let end = self.data.len();
+            self.data.set_len(end + bytes.len());
+            copy_memory(bytes, &mut self.data.as_mut_slice()[end..]);
+        }
     }
 
     #[inline(always)]
