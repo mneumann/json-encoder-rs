@@ -1,18 +1,52 @@
 #![feature(vec_push_all)]
 
+pub struct Buffer {
+   data: Vec<u8>
+}
+
+impl Buffer {
+    pub fn new() -> Buffer {
+        Buffer{data: Vec::new()}
+    }
+
+    pub fn with_capacity(capa: usize) -> Buffer {
+        Buffer{data: Vec::with_capacity(capa)}
+    }
+
+    #[inline(always)]
+    pub fn as_mut_ref(&mut self) -> &mut Vec<u8> {
+        &mut self.data
+    }
+
+    #[inline(always)]
+    pub fn push(&mut self, byte: u8) {
+       self.data.push(byte);
+    }
+
+    #[inline(always)]
+    pub fn push_all(&mut self, bytes: &[u8]) {
+       self.data.push_all(bytes);
+    }
+
+    #[inline(always)]
+    pub fn into_vec(self) -> Vec<u8> {
+        self.data
+    }
+}
+
 pub struct JsonEncoder {
-    buffer: Vec<u8>
+    buffer: Buffer
 }
 
 impl JsonEncoder {
     #[inline]
     pub fn new() -> JsonEncoder {
-        JsonEncoder{buffer: Vec::new()}
+        JsonEncoder{buffer: Buffer::new()}
     }
 
     #[inline]
     pub fn with_capacity(capa: usize) -> JsonEncoder {
-        JsonEncoder{buffer: Vec::with_capacity(capa)}
+        JsonEncoder{buffer: Buffer::with_capacity(capa)}
     }
 
     #[inline]
@@ -22,11 +56,11 @@ impl JsonEncoder {
 
     #[inline]
     pub fn into_vec(self) -> Vec<u8> {
-        self.buffer
+        self.buffer.into_vec()
     }
 
     #[inline]
-    pub fn with_buf<F>(&mut self, mut f: F) where F: FnMut(&mut Vec<u8>) {
+    pub fn with_buffer<F>(&mut self, mut f: F) where F: FnMut(&mut Buffer) {
         f(&mut self.buffer);
     }
 
