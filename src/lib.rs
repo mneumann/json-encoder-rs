@@ -1,4 +1,5 @@
-#![feature(vec_push_all, slice_bytes, convert)]
+#![feature(vec_push_all)]
+//#![feature(slice_bytes, convert)]
 
 pub struct Buffer {
    data: Vec<u8>
@@ -25,7 +26,8 @@ impl Buffer {
 
     #[inline(always)]
     pub fn push_all(&mut self, bytes: &[u8]) {
-        use std::slice::bytes::copy_memory;
+        //use std::slice::bytes::copy_memory;
+        use std::ptr;
 
         if bytes.is_empty() { return; }
 
@@ -38,7 +40,11 @@ impl Buffer {
         unsafe {
             let end = self.data.len();
             self.data.set_len(end + bytes.len());
-            copy_memory(bytes, &mut self.data.as_mut_slice()[end..]);
+            //copy_memory(bytes, &mut self.data[end..]);
+            ptr::copy_nonoverlapping(bytes.as_ptr(),
+                                     self.data[end..].as_mut_ptr(),
+                                     bytes.len());
+
         }
     }
 
