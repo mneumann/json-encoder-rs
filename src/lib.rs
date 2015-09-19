@@ -120,18 +120,18 @@ impl JsonEncoder {
         self.encode_raw(&digits[i..]);
     }
 
-    pub fn encode_obj<F>(&mut self, f: F) where F: Fn(JsonObjectEncoder) {
+    pub fn encode_obj<F>(&mut self, f: F) where F: Fn(&mut JsonObjectEncoder) {
         self.buffer.push(b'{');
         {
-            f(JsonObjectEncoder {js: self, needs_sep: false});
+            f(&mut JsonObjectEncoder {js: self, needs_sep: false});
         }
         self.buffer.push(b'}');
     }
 
-    pub fn encode_array<F>(&mut self, f: F) where F: Fn(JsonArrayEncoder) {
+    pub fn encode_array<F>(&mut self, f: F) where F: Fn(&mut JsonArrayEncoder) {
         self.buffer.push(b'[');
         {
-            f(JsonArrayEncoder {js: self, needs_sep: false});
+            f(&mut JsonArrayEncoder {js: self, needs_sep: false});
         }
         self.buffer.push(b']');
     }
@@ -188,24 +188,24 @@ fn test_json_obj_encoder() {
     assert_eq!(b"{}", &js.into_vec()[..]);
 
     let mut js = JsonEncoder::new();
-    js.encode_obj(|mut jso| {
+    js.encode_obj(|jso| {
         jso.encode_field("total", |js| js.encode_i32(31));
     });
     assert_eq!(b"{\"total\":31}", &js.into_vec()[..]);
 
     let mut js = JsonEncoder::new();
-    js.encode_obj(|mut jso| {
+    js.encode_obj(|jso| {
         jso.encode_field("total", |js| js.encode_i32(31));
         jso.encode_field("next", |js| js.encode_str("abc"));
     });
     assert_eq!(b"{\"total\":31,\"next\":\"abc\"}", &js.into_vec()[..]);
 
     let mut js = JsonEncoder::new();
-    js.encode_obj(|mut jso| {
+    js.encode_obj(|jso| {
         jso.encode_field("total", |js| js.encode_i32(31));
         jso.encode_field("next", |js| js.encode_str("abc"));
         jso.encode_field("tags", |js| {
-                js.encode_array(|mut jsa| {
+                js.encode_array(|jsa| {
                         jsa.encode_elm(|js| js.encode_i32(1));
                         jsa.encode_elm(|js| js.encode_i32(2));
                 });
