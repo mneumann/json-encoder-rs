@@ -163,6 +163,11 @@ impl<'a> JsonObjectEncoder<'a> {
 
         f(self.js);
     }
+
+    #[inline(always)]
+    pub fn encode_field_array<F:Fn(&mut JsonArrayEncoder)>(&mut self, name: &str, f: F) {
+        self.encode_field(name, |js| js.encode_array(|jsa| f(jsa)));
+    }
 }
 
 pub struct JsonArrayEncoder<'a> {
