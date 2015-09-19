@@ -150,8 +150,14 @@ impl JsonEncoder {
         t
     }
 
-    pub fn encode_array_nobrackets<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonArrayEncoder) -> T{
+    pub fn encode_array_nobrackets<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonArrayEncoder) -> T {
         f(&mut JsonArrayEncoder {js: self, needs_sep: false})
+    }
+
+    pub fn obj_single_str_field(name: &str, s: &str) -> Vec<u8> {
+        let mut js = JsonEncoder::with_capacity(name.len() + s.len() + 2 + 2 + 1 + 2);
+        js.encode_obj(|jso| jso.encode_field_str(name, s));
+        js.into_vec()
     }
 
 }
@@ -259,4 +265,7 @@ fn test_json_obj_encoder() {
         });
     });
     assert_eq!("{\"total\":31,\"next\":\"abc\",\"tags\":[1,2]}", str::from_utf8(&js.into_vec()[..]).unwrap());
+
+    let json = JsonEncoder::obj_single_str_field("total", "abcdef");
+    assert_eq!(b"{\"total\":\"abcdef\"}", &json[..]);
 }
