@@ -180,6 +180,11 @@ impl<'a> JsonArrayEncoder<'a> {
         }
         f(self.js);
     }
+
+    #[inline(always)]
+    pub fn encode_elm_i32(&mut self, val: i32) {
+        self.encode_elm(|j| j.encode_i32(val));
+    }
 }
 
 
