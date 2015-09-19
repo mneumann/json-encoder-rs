@@ -24,7 +24,7 @@ impl JsonEncoder {
         self.buffer
     }
 
-    pub fn with_buf<F>(&mut self, f: F) where F: Fn(&mut Vec<u8>) {
+    pub fn with_buf<F>(&mut self, mut f: F) where F: FnMut(&mut Vec<u8>) {
         f(&mut self.buffer);
     }
 
@@ -132,7 +132,7 @@ impl JsonEncoder {
         self.encode_raw(&digits[i..]);
     }
 
-    pub fn encode_obj<F, T>(&mut self, f: F) -> T where F: Fn(&mut JsonObjectEncoder) -> T {
+    pub fn encode_obj<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonObjectEncoder) -> T {
         self.buffer.push(b'{');
         let t = {
             f(&mut JsonObjectEncoder {js: self, needs_sep: false})
@@ -141,7 +141,7 @@ impl JsonEncoder {
         t
     }
 
-    pub fn encode_array<F, T>(&mut self, f: F) -> T where F: Fn(&mut JsonArrayEncoder) -> T {
+    pub fn encode_array<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonArrayEncoder) -> T {
         self.buffer.push(b'[');
         let t = {
             f(&mut JsonArrayEncoder {js: self, needs_sep: false})
@@ -150,7 +150,7 @@ impl JsonEncoder {
         t
     }
 
-    pub fn encode_array_nobrackets<F, T>(&mut self, f: F) -> T where F: Fn(&mut JsonArrayEncoder) -> T{
+    pub fn encode_array_nobrackets<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonArrayEncoder) -> T{
         f(&mut JsonArrayEncoder {js: self, needs_sep: false})
     }
 
@@ -164,7 +164,7 @@ pub struct JsonObjectEncoder<'a> {
 impl<'a> JsonObjectEncoder<'a> {
     // XXX: name MAY NOT include escapable characters
     #[inline(always)]
-    pub fn encode_field<F, T>(&mut self, name: &str, f: F) -> T where F: Fn(&mut JsonEncoder) -> T {
+    pub fn encode_field<F, T>(&mut self, name: &str, mut f: F) -> T where F: FnMut(&mut JsonEncoder) -> T {
         if self.needs_sep {
             self.js.buffer.push(b',');
         } else {
@@ -177,7 +177,7 @@ impl<'a> JsonObjectEncoder<'a> {
     }
 
     #[inline(always)]
-    pub fn encode_field_array<F, T>(&mut self, name: &str, f: F) -> T where F: Fn(&mut JsonArrayEncoder) -> T {
+    pub fn encode_field_array<F, T>(&mut self, name: &str, mut f: F) -> T where F: FnMut(&mut JsonArrayEncoder) -> T {
         self.encode_field(name, |js| js.encode_array(|jsa| f(jsa)))
     }
 
@@ -200,7 +200,7 @@ pub struct JsonArrayEncoder<'a> {
 
 impl<'a> JsonArrayEncoder<'a> {
     #[inline(always)]
-    pub fn encode_elm<F, T>(&mut self, f: F) -> T where F: Fn(&mut JsonEncoder) -> T {
+    pub fn encode_elm<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonEncoder) -> T {
         if self.needs_sep {
             self.js.buffer.push(b',');
         } else {
@@ -220,7 +220,7 @@ impl<'a> JsonArrayEncoder<'a> {
     }
 
     #[inline(always)]
-    pub fn encode_elm_obj<F, T>(&mut self, f: F) -> T where F: Fn(&mut JsonObjectEncoder) -> T {
+    pub fn encode_elm_obj<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonObjectEncoder) -> T {
         self.encode_elm(|js| js.encode_obj(|jso| f(jso)))
     }
 }
