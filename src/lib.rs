@@ -5,8 +5,14 @@ pub struct JsonEncoder {
 }
 
 impl JsonEncoder {
+    #[inline(always)]
     pub fn new() -> JsonEncoder {
         JsonEncoder{buffer: Vec::new()}
+    }
+
+    #[inline(always)]
+    pub fn with_capacity(capa: usize) -> JsonEncoder {
+        JsonEncoder{buffer: Vec::with_capacity(capa)}
     }
 
     #[inline(always)]
