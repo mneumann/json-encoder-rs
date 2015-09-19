@@ -168,6 +168,17 @@ impl<'a> JsonObjectEncoder<'a> {
     pub fn encode_field_array<F:Fn(&mut JsonArrayEncoder)>(&mut self, name: &str, f: F) {
         self.encode_field(name, |js| js.encode_array(|jsa| f(jsa)));
     }
+
+    #[inline(always)]
+    pub fn encode_field_i32(&mut self, name: &str, val: i32) {
+        self.encode_field(name, |js| js.encode_i32(val));
+    }
+
+    #[inline(always)]
+    pub fn encode_field_str(&mut self, name: &str, s: &str) {
+        self.encode_field(name, |js| js.encode_str(s));
+    }
+
 }
 
 pub struct JsonArrayEncoder<'a> {
