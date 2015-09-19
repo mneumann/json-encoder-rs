@@ -148,6 +148,10 @@ impl JsonEncoder {
         self.buffer.push(b']');
     }
 
+    pub fn encode_array_nobrackets<F>(&mut self, f: F) where F: Fn(&mut JsonArrayEncoder) {
+        f(&mut JsonArrayEncoder {js: self, needs_sep: false});
+    }
+
 }
 
 pub struct JsonObjectEncoder<'a> {
