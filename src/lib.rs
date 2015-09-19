@@ -5,36 +5,39 @@ pub struct JsonEncoder {
 }
 
 impl JsonEncoder {
-    #[inline(always)]
+    #[inline]
     pub fn new() -> JsonEncoder {
         JsonEncoder{buffer: Vec::new()}
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn with_capacity(capa: usize) -> JsonEncoder {
         JsonEncoder{buffer: Vec::with_capacity(capa)}
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_raw(&mut self, raw: &[u8]) {
         self.buffer.push_all(raw);
     }
 
+    #[inline]
     pub fn into_vec(self) -> Vec<u8> {
         self.buffer
     }
 
+    #[inline]
     pub fn with_buf<F>(&mut self, mut f: F) where F: FnMut(&mut Vec<u8>) {
         f(&mut self.buffer);
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_str_noescape(&mut self, raw_str: &str) {
         self.buffer.push(b'"');
         self.buffer.push_all(raw_str.as_bytes());
         self.buffer.push(b'"');
     }
 
+    #[inline]
     fn escape_bytes(&mut self, bytes: &[u8]) {
         let mut start = 0;
 
@@ -66,6 +69,7 @@ impl JsonEncoder {
         }
     }
 
+    #[inline]
     pub fn encode_decimal_str(&mut self, value: u64) {
         self.buffer.push(b'"');
         self.encode_u64_decimal(value);
@@ -73,7 +77,7 @@ impl JsonEncoder {
     }
 
     // encodes as decimal string
-    #[inline(always)]
+    #[inline]
     fn encode_u64_decimal(&mut self, value: u64) {
         const CHARS: &'static [u8] = b"0123456789";
         const MAX_DIGITS: usize = 20;
@@ -95,14 +99,14 @@ impl JsonEncoder {
         self.encode_raw(&digits[i..]);
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_str(&mut self, s: &str) {
         self.buffer.push(b'"');
         self.escape_bytes(s.as_bytes());
         self.buffer.push(b'"');
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_i32(&mut self, value: i32) {
         if value == 0 {
             self.buffer.push(b'0');
@@ -115,6 +119,7 @@ impl JsonEncoder {
     }
 
     // encodes a 31-bit unsigned integer != 0
+    #[inline]
     fn encode_u31(&mut self, value: u32) {
         const CHARS: &'static [u8] = b"0123456789";
         const MAX_DIGITS: usize = 10;
@@ -132,6 +137,7 @@ impl JsonEncoder {
         self.encode_raw(&digits[i..]);
     }
 
+    #[inline]
     pub fn encode_obj<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonObjectEncoder) -> T {
         self.buffer.push(b'{');
         let t = {
@@ -141,6 +147,7 @@ impl JsonEncoder {
         t
     }
 
+    #[inline]
     pub fn encode_array<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonArrayEncoder) -> T {
         self.buffer.push(b'[');
         let t = {
@@ -150,10 +157,12 @@ impl JsonEncoder {
         t
     }
 
+    #[inline]
     pub fn encode_array_nobrackets<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonArrayEncoder) -> T {
         f(&mut JsonArrayEncoder {js: self, needs_sep: false})
     }
 
+    #[inline]
     pub fn obj_single_str_field(name: &str, s: &str) -> Vec<u8> {
         let mut js = JsonEncoder::with_capacity(name.len() + s.len() + 2 + 2 + 1 + 2);
         js.encode_obj(|jso| jso.encode_field_str(name, s));
@@ -169,7 +178,7 @@ pub struct JsonObjectEncoder<'a> {
 
 impl<'a> JsonObjectEncoder<'a> {
     // XXX: name MAY NOT include escapable characters
-    #[inline(always)]
+    #[inline]
     pub fn encode_field<F, T>(&mut self, name: &str, mut f: F) -> T where F: FnMut(&mut JsonEncoder) -> T {
         if self.needs_sep {
             self.js.buffer.push(b',');
@@ -182,17 +191,17 @@ impl<'a> JsonObjectEncoder<'a> {
         f(self.js)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_field_array<F, T>(&mut self, name: &str, mut f: F) -> T where F: FnMut(&mut JsonArrayEncoder) -> T {
         self.encode_field(name, |js| js.encode_array(|jsa| f(jsa)))
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_field_i32(&mut self, name: &str, val: i32) {
         self.encode_field(name, |js| js.encode_i32(val));
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_field_str(&mut self, name: &str, s: &str) {
         self.encode_field(name, |js| js.encode_str(s));
     }
@@ -205,7 +214,7 @@ pub struct JsonArrayEncoder<'a> {
 }
 
 impl<'a> JsonArrayEncoder<'a> {
-    #[inline(always)]
+    #[inline]
     pub fn encode_elm<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonEncoder) -> T {
         if self.needs_sep {
             self.js.buffer.push(b',');
@@ -215,17 +224,17 @@ impl<'a> JsonArrayEncoder<'a> {
         f(self.js)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_elm_i32(&mut self, val: i32) {
         self.encode_elm(|js| js.encode_i32(val));
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_elm_str(&mut self, s: &str) {
         self.encode_elm(|js| js.encode_str(s));
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn encode_elm_obj<F, T>(&mut self, mut f: F) -> T where F: FnMut(&mut JsonObjectEncoder) -> T {
         self.encode_elm(|js| js.encode_obj(|jso| f(jso)))
     }
