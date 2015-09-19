@@ -119,32 +119,26 @@ impl JsonEncoder {
 
         self.encode_raw(&digits[i..]);
     }
+
+    pub fn encode_obj<F>(&mut self, f: F) where F: Fn(JsonObjectEncoder) {
+        self.buffer.push(b'{');
+        {
+            f(JsonObjectEncoder {js: self, needs_sep: false});
+        }
+        self.buffer.push(b'}');
+    }
 }
 
-pub struct JsonObjectEncoder {
-    js: JsonEncoder,
+pub struct JsonObjectEncoder<'a> {
+    js: &'a mut JsonEncoder,
     needs_sep: bool,
 }
 
-impl JsonObjectEncoder {
-    pub fn new() -> JsonObjectEncoder {
-        JsonObjectEncoder {
-                js: JsonEncoder::new(),
-                needs_sep: false
-        }
-    }
-
-    pub fn begin(&mut self) {
-        self.js.encode_raw(b"{");
-    }
-
-    pub fn end(&mut self) {
-        self.js.encode_raw(b"}");
-    }
+impl<'a> JsonObjectEncoder<'a> {
 
     // XXX: name MAY NOT include escapable characters
     #[inline(always)]
-    pub fn field<F:Fn(&mut JsonEncoder)>(&mut self, name: &str, f: F) {
+    pub fn encode_field<F:Fn(&mut JsonEncoder)>(&mut self, name: &str, f: F) {
         if self.needs_sep {
             self.js.buffer.push(b',');
         }
@@ -153,36 +147,27 @@ impl JsonObjectEncoder {
         self.js.buffer.push(b'"');
         self.js.buffer.push(b':');
 
-        f(&mut self.js);
+        f(self.js);
         self.needs_sep = true;
-    }
-
-    pub fn into_json_encoder(self) -> JsonEncoder {
-        self.js
-    }
-
-    pub fn into_vec(self) -> Vec<u8> {
-        self.into_json_encoder().into_vec()
     }
 }
 
 #[test]
 fn test_json_obj_encoder() {
-    let mut jso = JsonObjectEncoder::new();
-    jso.begin();
-    jso.end();
-    assert_eq!(b"{}", &jso.into_vec()[..]);
+    let mut js = JsonEncoder::new();
+    js.encode_obj(|_|{});
+    assert_eq!(b"{}", &js.into_vec()[..]);
 
-    let mut jso = JsonObjectEncoder::new();
-    jso.begin();
-    jso.field("total", |js| js.encode_i32(31));
-    jso.end();
-    assert_eq!(b"{\"total\":31}", &jso.into_vec()[..]);
+    let mut js = JsonEncoder::new();
+    js.encode_obj(|mut jso| {
+        jso.encode_field("total", |js| js.encode_i32(31));
+    });
+    assert_eq!(b"{\"total\":31}", &js.into_vec()[..]);
 
-    let mut jso = JsonObjectEncoder::new();
-    jso.begin();
-    jso.field("total", |js| js.encode_i32(31));
-    jso.field("next", |js| js.encode_str("abc"));
-    jso.end();
-    assert_eq!(b"{\"total\":31,\"next\":\"abc\"}", &jso.into_vec()[..]);
+    let mut js = JsonEncoder::new();
+    js.encode_obj(|mut jso| {
+        jso.encode_field("total", |js| js.encode_i32(31));
+        jso.encode_field("next", |js| js.encode_str("abc"));
+    });
+    assert_eq!(b"{\"total\":31,\"next\":\"abc\"}", &js.into_vec()[..]);
 }
