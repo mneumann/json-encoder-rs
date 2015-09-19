@@ -23,8 +23,10 @@ impl JsonEncoder {
     }
 
     #[inline(always)]
-    pub fn encode_raw_str(&mut self, raw_str: &str) {
+    pub fn encode_str_noescape(&mut self, raw_str: &str) {
+        self.buffer.push(b'"');
         self.buffer.push_all(raw_str.as_bytes());
+        self.buffer.push(b'"');
     }
 
     fn escape_bytes(&mut self, bytes: &[u8]) {
@@ -156,9 +158,7 @@ impl<'a> JsonObjectEncoder<'a> {
         } else {
             self.needs_sep = true;
         }
-        self.js.buffer.push(b'"');
-        self.js.encode_raw_str(name);
-        self.js.buffer.push(b'"');
+        self.js.encode_str_noescape(name);
         self.js.buffer.push(b':');
 
         f(self.js);
