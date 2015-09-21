@@ -1,3 +1,8 @@
+#![feature(test)]
+
+#[cfg(test)]
+extern crate test;
+
 use std::ptr;
 
 pub struct Buffer {
@@ -13,17 +18,22 @@ impl Buffer {
         Buffer{data: Vec::with_capacity(capa)}
     }
 
+    #[inline]
+    pub fn clear(&mut self) {
+        self.data.clear();
+    }
+
     #[inline(always)]
     pub fn as_mut_ref(&mut self) -> &mut Vec<u8> {
         &mut self.data
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn push(&mut self, byte: u8) {
        self.data.push(byte);
     }
 
-    #[inline(always)]
+    #[inline]
     fn extend_back(&mut self, len: usize) -> &mut[u8] {
         debug_assert!(len > 0);
 
@@ -33,7 +43,7 @@ impl Buffer {
         return &mut self.data[data_len..];
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn push_all(&mut self, bytes: &[u8]) {
         let len = bytes.len();
         if len > 0 {
@@ -46,7 +56,7 @@ impl Buffer {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn push_all_around(&mut self, around: u8, bytes: &[u8]) {
         let len = bytes.len();
         let ext = self.extend_back(2 + len);
@@ -60,7 +70,7 @@ impl Buffer {
        }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn into_vec(self) -> Vec<u8> {
         self.data
     }
@@ -77,6 +87,11 @@ impl JsonEncoder {
     }
 
     #[inline]
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+    }
+
+    #[inline]
     pub fn with_capacity(capa: usize) -> JsonEncoder {
         JsonEncoder{buffer: Buffer::with_capacity(capa)}
     }
@@ -85,6 +100,12 @@ impl JsonEncoder {
     pub fn encode_raw(&mut self, raw: &[u8]) {
         self.buffer.push_all(raw);
     }
+
+    #[inline]
+    pub fn encode_raw_around(&mut self, around: u8, raw: &[u8]) {
+        self.buffer.push_all_around(around, raw);
+    }
+
 
     #[inline]
     pub fn into_vec(self) -> Vec<u8> {
@@ -136,24 +157,22 @@ impl JsonEncoder {
     // encodes as decimal string
     #[inline]
     pub fn encode_decimal_str(&mut self, value: u64) {
+        use std::mem;
         const CHARS: &'static [u8] = b"0123456789";
         const MAX_DIGITS: usize = 20;
-        
-        if value == 0 {
-            self.buffer.push_all_around(b'"', b"0");
-            return;
-        }
 
-        let mut digits: [u8; MAX_DIGITS] = [b'0'; MAX_DIGITS];
-        let mut i = MAX_DIGITS;
+        let mut digits: [u8; MAX_DIGITS] = unsafe{ mem::uninitialized() };
         let mut n = value;
-        while n > 0 {
-            i -= 1;
-            digits[i] = CHARS[(n % 10) as usize];
+        let mut start = MAX_DIGITS;
+        for digit in digits.iter_mut().rev() {
+            start -= 1;
+            *digit = unsafe { *CHARS.get_unchecked((n % 10) as usize) };
             n = n / 10;
+            if n == 0 {
+                break;
+            }
         }
-
-        self.buffer.push_all_around(b'"', &digits[i..]);
+        self.encode_raw_around(b'"', &digits[start..]);
     }
 
     #[inline]
@@ -165,33 +184,75 @@ impl JsonEncoder {
 
     #[inline]
     pub fn encode_i32(&mut self, value: i32) {
-        if value == 0 {
-            self.buffer.push(b'0');
-        } else if value > 0 {
-            self.encode_u31(value as u32);
+        if value >= 0 {
+            self.encode_u32(value as u32);
         } else {
             self.buffer.push(b'-');
-            self.encode_u31((-value) as u32);
+            self.encode_u32((-value) as u32);
         }
     }
 
-    // encodes a 31-bit unsigned integer != 0
+    /// encodes a 32-bit unsigned integer
     #[inline]
-    fn encode_u31(&mut self, value: u32) {
+    pub fn encode_u32(&mut self, value: u32) {
+        use std::mem;
         const CHARS: &'static [u8] = b"0123456789";
         const MAX_DIGITS: usize = 10;
-        debug_assert!(value != 0);
 
-        let mut digits: [u8; MAX_DIGITS] = [b'0'; MAX_DIGITS];
-        let mut i = MAX_DIGITS;
+        let mut digits: [u8; MAX_DIGITS] = unsafe{ mem::uninitialized() };
         let mut n = value;
-        while n > 0 {
-            i -= 1;
-            digits[i] = CHARS[(n % 10) as usize];
+        let mut start = MAX_DIGITS;
+        for digit in digits.iter_mut().rev() {
+            start -= 1;
+            *digit = unsafe { *CHARS.get_unchecked((n % 10) as usize) };
             n = n / 10;
+            if n == 0 {
+                break;
+            }
         }
 
-        self.encode_raw(&digits[i..]);
+        self.encode_raw(&digits[start..]);
+    }
+
+    /// encodes a 32-bit unsigned integer as hexadecimal
+    #[inline]
+    pub fn encode_hex_u32(&mut self, value: u32) {
+        use std::mem;
+        const CHARS: &'static [u8] = b"0123456789ABCDEF";
+        const MAX_DIGITS: usize = 8;
+
+        let mut digits: [u8; MAX_DIGITS] = unsafe{ mem::uninitialized() };
+        let mut n = value;
+        let mut start = MAX_DIGITS;
+        for digit in digits.iter_mut().rev() {
+            start -= 1;
+            *digit = unsafe { *CHARS.get_unchecked((n & 15) as usize) };
+            n = n / 16;
+            if n == 0 {
+                break;
+            }
+        }
+
+        self.encode_raw(&digits[start..]);
+    }
+
+    #[inline]
+    pub fn encode_hex_u32_fast(&mut self, n: u32) {
+        const CHARS: &'static [u8] = b"0123456789ABCDEF";
+        const MAX_DIGITS: usize = 8;
+
+        let digits: [u8; MAX_DIGITS] = [
+           unsafe { *CHARS.get_unchecked( ((n >> 28) & 15) as usize ) },
+           unsafe { *CHARS.get_unchecked( ((n >> 24) & 15) as usize ) },
+           unsafe { *CHARS.get_unchecked( ((n >> 20) & 15) as usize ) },
+           unsafe { *CHARS.get_unchecked( ((n >> 16) & 15) as usize ) },
+           unsafe { *CHARS.get_unchecked( ((n >> 12) & 15) as usize ) },
+           unsafe { *CHARS.get_unchecked( ((n >>  8) & 15) as usize ) },
+           unsafe { *CHARS.get_unchecked( ((n >>  4) & 15) as usize ) },
+           unsafe { *CHARS.get_unchecked( ((n >>  0) & 15) as usize ) }
+        ];
+
+        self.encode_raw(&digits[..]);
     }
 
     #[inline]
@@ -336,4 +397,82 @@ fn test_json_obj_encoder() {
 
     let json = JsonEncoder::obj_single_str_field("total", "");
     assert_eq!(b"{\"total\":\"\"}", &json[..]);
+}
+
+#[bench]
+fn bench_encode_i32(b: &mut test::Bencher) {
+    let mut js = JsonEncoder::with_capacity(80);
+    b.iter(|| {
+        let n = test::black_box(10000);
+        for _ in (0..n) {
+            js.clear();
+            js.encode_i32(123_456_789);
+            js.encode_i32(321_654_987);
+            js.encode_i32(231_564_857);
+            js.encode_i32(189_123_456);
+        }
+    });
+}
+
+#[bench]
+fn bench_encode_u32(b: &mut test::Bencher) {
+    let mut js = JsonEncoder::with_capacity(80);
+    b.iter(|| {
+        let n = test::black_box(10000);
+        for _ in (0..n) {
+            js.clear();
+            js.encode_u32(123_456_789);
+            js.encode_u32(321_654_987);
+            js.encode_u32(231_564_857);
+            js.encode_u32(189_123_456);
+        }
+    });
+}
+
+#[bench]
+fn bench_encode_hex_u32(b: &mut test::Bencher) {
+    let mut js = JsonEncoder::with_capacity(80);
+    b.iter(|| {
+        let n = test::black_box(10000);
+        for _ in (0..n) {
+            js.clear();
+            js.encode_hex_u32(123_456_789);
+            js.encode_hex_u32(321_654_987);
+            js.encode_hex_u32(231_564_857);
+            js.encode_hex_u32(189_123_456);
+        }
+    });
+}
+
+#[bench]
+fn bench_encode_hex_u32_fast(b: &mut test::Bencher) {
+    let mut js = JsonEncoder::with_capacity(80);
+    b.iter(|| {
+        let n = test::black_box(10000);
+        for _ in (0..n) {
+            js.clear();
+            js.encode_hex_u32_fast(123_456_789);
+            js.encode_hex_u32_fast(321_654_987);
+            js.encode_hex_u32_fast(231_564_857);
+            js.encode_hex_u32_fast(189_123_456);
+        }
+    });
+}
+
+#[test]
+fn test_encode_u32() {
+    let mut js = JsonEncoder::new();
+    js.encode_u32(0);
+    let vec = js.into_vec();
+    assert_eq!(b"0", &vec[..]);
+
+    let mut js = JsonEncoder::new();
+    js.encode_u32(123000);
+    let vec = js.into_vec();
+    assert_eq!(b"123000", &vec[..]);
+
+    let mut js = JsonEncoder::new();
+    js.encode_u32(1230001);
+    let vec = js.into_vec();
+    assert_eq!(b"1230001", &vec[..]);
 }
