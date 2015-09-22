@@ -3,7 +3,10 @@
 #[cfg(test)]
 extern crate test;
 
+extern crate vec_byte_appender;
+
 use std::ptr;
+use vec_byte_appender::append_bytes_uninit;
 
 pub struct Buffer {
    data: Vec<u8>
@@ -34,40 +37,25 @@ impl Buffer {
     }
 
     #[inline]
-    fn extend_back(&mut self, len: usize) -> &mut[u8] {
-        debug_assert!(len > 0);
-
-        let data_len = self.data.len();
-        self.data.reserve(len);
-        unsafe { self.data.set_len(data_len + len); }
-        return &mut self.data[data_len..];
-    }
-
-    #[inline]
     pub fn push_all(&mut self, bytes: &[u8]) {
         let len = bytes.len();
-        if len > 0 {
-            let ext = self.extend_back(len);
-            unsafe {
-                ptr::copy_nonoverlapping(bytes.as_ptr(),
-                                         ext.as_mut_ptr(),
-                                         len);
-            }
-        }
+        if len == 0 { return }
+        append_bytes_uninit(&mut self.data, len, |ext| unsafe {
+            ptr::copy_nonoverlapping(bytes.as_ptr(), ext.as_mut_ptr(), len);
+        });
     }
 
+    // XXX: If bytes.len() > isize::max, this fails.
     #[inline]
     pub fn push_all_around(&mut self, around: u8, bytes: &[u8]) {
         let len = bytes.len();
-        let ext = self.extend_back(2 + len);
-
-        unsafe {
+        append_bytes_uninit(&mut self.data, len + 2, |ext| unsafe {
             ptr::write(ext.as_mut_ptr(), around);
             ptr::copy_nonoverlapping(bytes.as_ptr(),
                                      ext.as_mut_ptr().offset(1),
                                      len);
-            ptr::write(ext[1+len..].as_mut_ptr(), around);
-       }
+            ptr::write(ext.as_mut_ptr().offset(1+len as isize), around);
+        });
     }
 
     #[inline]

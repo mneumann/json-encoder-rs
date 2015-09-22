@@ -2,3 +2,6 @@
 name = "json-encoder"
 version = "0.1.0"
 authors = ["Michael Neumann <mneumann@ntecs.de>"]
+
+[dependencies.vec-byte-appender]
+git = "https://github.com/mneumann/vec-byte-appender-rs.git"
