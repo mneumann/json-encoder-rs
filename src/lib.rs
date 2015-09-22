@@ -254,6 +254,11 @@ impl<'a> JsonObjectEncoder<'a> {
     }
 
     #[inline]
+    pub fn encode_field_obj<F, T>(&mut self, name: &str, mut f: F) -> T where F: FnMut(&mut JsonObjectEncoder) -> T {
+        self.encode_field(name, |js| js.encode_obj(|jso| f(jso)))
+    }
+
+    #[inline]
     pub fn encode_field_i32(&mut self, name: &str, val: i32) {
         self.encode_field(name, |js| js.encode_i32(val));
     }
