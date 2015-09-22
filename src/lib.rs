@@ -6,7 +6,7 @@ extern crate test;
 extern crate vec_byte_appender;
 
 use std::ptr;
-use vec_byte_appender::append_bytes_uninit;
+use vec_byte_appender::{append_bytes_uninit, append_bytes_uninit_flex};
 
 pub struct Buffer {
    data: Vec<u8>
@@ -110,7 +110,6 @@ impl JsonEncoder {
         self.buffer.push_all_around(around, raw);
     }
 
-
     #[inline]
     pub fn into_vec(self) -> Vec<u8> {
         self.buffer.into_vec()
@@ -180,10 +179,60 @@ impl JsonEncoder {
     }
 
     #[inline]
-    pub fn encode_str(&mut self, s: &str) {
+    pub fn encode_str2(&mut self, s: &str) {
         self.buffer.push(b'"');
         self.escape_bytes(s.as_bytes());
         self.buffer.push(b'"');
+    }
+
+    #[inline]
+    pub fn encode_str(&mut self, s: &str) {
+        let bytes = s.as_bytes();
+        append_bytes_uninit_flex(&mut self.buffer.data, 2*bytes.len() + 2, |ext| {
+            let dst = ext.as_mut_ptr();
+            let mut count: isize = 0;
+
+            unsafe { ptr::write(dst.offset(count), b'"'); }
+            count += 1;
+
+            let mut start = 0;
+            for (i, &byte) in bytes.iter().enumerate() {
+                let escaped2: u8 = match byte {
+                    b'"' => b'"',
+                    b'\\' => b'\\',
+                    b'\x08' => b'b',
+                    b'\x0c' => b'f',
+                    b'\n' => b'n',
+                    b'\r' => b'r',
+                    b'\t' => b't',
+                    _ => {
+                        continue;
+                    }
+                };
+
+                if start < i {
+                    let wr_count = i - start;
+                    unsafe { ptr::copy_nonoverlapping(bytes.as_ptr().offset(start as isize), dst.offset(count), wr_count); }
+                    count += wr_count as isize;
+                }
+
+                unsafe { ptr::write(dst.offset(count), b'\\'); }
+                count += 1;
+                unsafe { ptr::write(dst.offset(count), escaped2); }
+                count += 1;
+
+                start = i + 1;
+            }
+
+            if start != bytes.len() {
+               let wr_count = bytes.len() - start;
+               unsafe { ptr::copy_nonoverlapping(bytes.as_ptr().offset(start as isize), dst.offset(count), wr_count); }
+               count += wr_count as isize;
+            }
+            unsafe { ptr::write(dst.offset(count), b'"'); }
+            count += 1;
+            count as usize
+        });
     }
 
     #[inline]
