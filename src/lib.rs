@@ -58,6 +58,22 @@ impl Buffer {
         });
     }
 
+    // XXX: If before, after, bytes.len() > isize::max, this fails.
+    #[inline]
+    pub fn push_all_around2(&mut self, before: &[u8], bytes: &[u8], after: &[u8]) {
+        append_bytes_uninit(&mut self.data, before.len() + bytes.len() + after.len(), |ext| unsafe {
+            ptr::copy_nonoverlapping(before.as_ptr(),
+                                     ext.as_mut_ptr(),
+                                     before.len());
+            ptr::copy_nonoverlapping(bytes.as_ptr(),
+                                     ext.as_mut_ptr().offset(before.len() as isize),
+                                     bytes.len());
+            ptr::copy_nonoverlapping(after.as_ptr(),
+                                     ext.as_mut_ptr().offset(before.len() as isize).offset(bytes.len() as isize),
+                                     after.len());
+        });
+    }
+
     #[inline]
     pub fn into_vec(self) -> Vec<u8> {
         self.data
@@ -287,13 +303,11 @@ impl<'a> JsonObjectEncoder<'a> {
     #[inline]
     pub fn encode_field<F, T>(&mut self, name: &str, mut f: F) -> T where F: FnMut(&mut JsonEncoder) -> T {
         if self.needs_sep {
-            self.js.buffer.push(b',');
+            self.js.buffer.push_all_around2(b",\"", name.as_bytes(), b"\":");
         } else {
+            self.js.buffer.push_all_around2(b"\"", name.as_bytes(), b"\":");
             self.needs_sep = true;
         }
-        self.js.encode_str_noescape(name);
-        self.js.buffer.push(b':');
-
         f(self.js)
     }
 
