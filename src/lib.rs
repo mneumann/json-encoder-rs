@@ -1,4 +1,5 @@
 #![feature(test)]
+#![feature(link_llvm_intrinsics)]
 
 #[cfg(test)]
 extern crate test;
@@ -7,6 +8,14 @@ extern crate vec_byte_appender;
 
 use std::ptr;
 use vec_byte_appender::{append_bytes_uninit, append_bytes_uninit_flex};
+
+extern {
+    #[link_name = "llvm.expect.i64"]
+    fn expect_u64(val: u64, expected_val: u64) -> u64;
+
+    #[link_name = "llvm.expect.i8"]
+    fn expect_u8(val: u8, expected_val: u8) -> u8;
+}
 
 pub struct Buffer {
    data: Vec<u8>
@@ -118,6 +127,15 @@ const LUT: [u8; 256] = [
      0 /* 240 */,  0 /* 241 */,  0 /* 242 */,  0 /* 243 */,  0 /* 244 */,  0 /* 245 */,  0 /* 246 */,  0 /* 247 */,
      0 /* 248 */,  0 /* 249 */,  0 /* 250 */,  0 /* 251 */,  0 /* 252 */,  0 /* 253 */,  0 /* 254 */,  0 /* 255 */
 ];
+
+const LUT_BIN: [u64; 4] = [
+    0b0000000000000000000000000000010000000000000000000011011100000000,
+    0b0000000000000000000000000000000000010000000000000000000000000000,
+    0b0000000000000000000000000000000000000000000000000000000000000000,
+    0b0000000000000000000000000000000000000000000000000000000000000000
+];
+
+const LUT_HASH: u64 = LUT_BIN[0] | LUT_BIN[1] | LUT_BIN[2] | LUT_BIN[3];
 
 impl JsonEncoder {
     #[inline]
@@ -271,7 +289,7 @@ impl JsonEncoder {
     }
 
     #[inline]
-    pub fn encode_str(&mut self, s: &str) {
+    pub fn encode_str_(&mut self, s: &str) {
         let bytes = s.as_bytes();
         append_bytes_uninit_flex(&mut self.buffer.data, 2*bytes.len() + 2, |ext| {
             let dst = ext.as_mut_ptr();
@@ -281,14 +299,53 @@ impl JsonEncoder {
 
             for &byte in bytes.iter() {
                 let escaped2: u8 = unsafe { *LUT.get_unchecked(byte as usize) };
-                if escaped2 == 0 {
-                    unsafe { ptr::write(dst.offset(count as isize), byte); }
-                } else {
+                if escaped2 != 0 {
                     unsafe { ptr::write(dst.offset(count as isize), b'\\'); }
                     count += 1;
                     unsafe { ptr::write(dst.offset(count as isize), escaped2); }
+                    count += 1;
+                } else {
+                    unsafe { ptr::write(dst.offset(count as isize), byte); }
+                    count += 1;
                 }
-                count += 1;
+            }
+
+            unsafe { ptr::write(dst.offset(count as isize), b'"'); }
+            count += 1;
+            count
+        });
+    }
+ 
+    #[inline]
+    pub fn encode_str(&mut self, s: &str) {
+        let bytes = s.as_bytes();
+        append_bytes_uninit_flex(&mut self.buffer.data, 2*bytes.len() + 2, |ext| {
+            let dst = ext.as_mut_ptr();
+
+            unsafe { ptr::write(dst, b'"'); }
+            let mut count: usize = 1;
+
+            for &byte in bytes.iter() {
+                //let lut_idx = (byte >> 6) as usize; // highest 2-bits
+                //let reg = unsafe { *LUT_BIN.get_unchecked(lut_idx) };
+                //let bit = ((LUT_HASH/*reg*/ >> (byte & 63)) as u8) & 1;
+
+                if unsafe { expect_u64((LUT_HASH >> (byte & 63)) << 63, 0) } == 0 {
+                    // likely
+                    unsafe { ptr::write(dst.offset(count as isize), byte); }
+                    count += 1;
+                } else {
+                    let escaped2: u8 = unsafe { *LUT.get_unchecked(byte as usize) };
+                    if unsafe { expect_u8(escaped2, 0) } == 0 {
+                        unsafe { ptr::write(dst.offset(count as isize), byte); }
+                        count += 1;
+                    } else {
+                        unsafe { ptr::write(dst.offset(count as isize), b'\\'); }
+                        count += 1;
+                        unsafe { ptr::write(dst.offset(count as isize), escaped2); }
+                        count += 1;
+                    }
+                }
             }
 
             unsafe { ptr::write(dst.offset(count as isize), b'"'); }
@@ -496,7 +553,9 @@ fn test_json_obj_encoder() {
         jso.encode_field("total", |js| js.encode_i32(31));
         jso.encode_field("next", |js| js.encode_str("abc"));
     });
-    assert_eq!(b"{\"total\":31,\"next\":\"abc\"}", &js.into_vec()[..]);
+    let v = js.into_vec(); 
+    println!("{}", str::from_utf8(&v[..]).unwrap());
+    assert_eq!(b"{\"total\":31,\"next\":\"abc\"}", &v[..]);
 
     let mut js = JsonEncoder::new();
     js.encode_obj(|jso| {
@@ -606,6 +665,18 @@ fn bench_encode_str(b: &mut test::Bencher) {
 }
 
 #[bench]
+fn bench_encode_str_(b: &mut test::Bencher) {
+    let mut js = JsonEncoder::with_capacity(400);
+    b.iter(|| {
+        let n = test::black_box(100_0000);
+        for _ in (0..n) {
+            js.clear();
+            js.encode_str_(STR);
+        }
+    });
+}
+
+#[bench]
 fn bench_encode_str3(b: &mut test::Bencher) {
     let mut js = JsonEncoder::with_capacity(400);
     b.iter(|| {
@@ -629,7 +700,6 @@ fn bench_encode_str2(b: &mut test::Bencher) {
         }
     });
 }
-
 
 #[test]
 fn test_encode_u32() {
