@@ -582,6 +582,12 @@ pub struct JsonObjectEncoder<'a> {
 }
 
 impl<'a> JsonObjectEncoder<'a> {
+
+    #[inline]
+    pub fn get_json_encoder<'b>(&'b mut self) -> &'b mut JsonEncoder {
+        self.js
+    }
+
     // XXX: name MAY NOT include escapable characters
     #[inline]
     pub fn encode_field<F, T>(&mut self, name: &str, mut f: F) -> T where F: FnMut(&mut JsonEncoder) -> T {
