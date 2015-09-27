@@ -508,7 +508,7 @@ impl JsonEncodable for i32 {
 
 impl<'a> JsonVal<'a> {
     #[inline]
-    fn value<T:JsonEncodable>(self, val: T) {
+    pub fn value<T:JsonEncodable>(self, val: T) {
         val.encode(self.js);
     }
 
@@ -531,7 +531,7 @@ impl<'a> JsonObj<'a> {
     }
 
     #[inline]
-    fn field<'b>(&'b mut self, name: &str) -> JsonVal<'b> {
+    pub fn field<'b>(&'b mut self, name: &str) -> JsonVal<'b> {
         if self.elm_count > 0 {
             self.js.buffer.push_all_around2(b",\"", name.as_bytes(), b"\":");
         } else {
@@ -542,7 +542,7 @@ impl<'a> JsonObj<'a> {
     }
 
     #[inline]
-    fn end(self) {
+    pub fn end(self) {
         self.js.buffer.push(b'}');
     }
 }
@@ -556,7 +556,7 @@ impl<'a> JsonVec<'a> {
     }
 
     #[inline]
-    fn element<'b>(&'b mut self) -> JsonVal<'b> {
+    pub fn element<'b>(&'b mut self) -> JsonVal<'b> {
         if self.elm_count > 0 {
             self.js.buffer.push(b',');
         }
@@ -565,12 +565,12 @@ impl<'a> JsonVec<'a> {
     }
 
     #[inline]
-    fn element_with_value<T:JsonEncodable>(&mut self, val: T) { 
+    pub fn element_with_value<T:JsonEncodable>(&mut self, val: T) { 
         self.element().value(val);
     }
 
     #[inline]
-    fn end(self) {
+    pub fn end(self) {
         self.js.buffer.push(b']');
     }
 }
