@@ -484,7 +484,6 @@ trait JsonMultivalue {
 pub struct JsonObj<'a> {
     js: &'a mut JsonEncoder,
     elm_count: usize,
-    start_pos: usize,
 }
 
 pub struct JsonVal<'a> {
@@ -502,9 +501,8 @@ impl<'a> JsonVal<'a> {
 
 impl<'a> JsonObj<'a> {
     fn open<'b>(js: &'b mut JsonEncoder) -> JsonObj<'b> {
-        let pos = js.buffer.get_current_position();
         js.buffer.push(b'{');
-        JsonObj {js: js, elm_count: 0, start_pos: pos}
+        JsonObj {js: js, elm_count: 0}
     }
 
     fn field<'b>(&'b mut self, name: &str) -> JsonVal<'b> {
@@ -519,10 +517,6 @@ impl<'a> JsonObj<'a> {
 
     fn end(self) {
         self.js.buffer.push(b'}');
-    }
-
-    fn abort(self) {
-        self.js.buffer.set_current_position(self.start_pos);
     }
 }
 
@@ -652,19 +646,6 @@ fn test_json_empty_obj() {
     }
 
     assert_eq!(b"{}", &js.into_vec()[..]);
-}
-
-#[test]
-fn test_json_empty_obj_abort() {
-    use std::str;
-
-    let mut js = JsonEncoder::new();
-    {
-        let mut obj = js.obj();
-        obj.abort();
-    }
-
-    assert_eq!(b"", &js.into_vec()[..]);
 }
 
 #[test]
