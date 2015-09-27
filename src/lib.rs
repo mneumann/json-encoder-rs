@@ -474,13 +474,6 @@ impl JsonEncoder {
     }
 }
 
-/*
-trait JsonMultivalue {
-    fn beg(&mut self);
-    fn end(&mut self);
-}
-*/
-
 pub struct JsonObj<'a> {
     js: &'a mut JsonEncoder,
     elm_count: usize,
@@ -490,21 +483,45 @@ pub struct JsonVal<'a> {
     js: &'a mut JsonEncoder,
 }
 
-impl<'a> JsonVal<'a> {
-    fn str_value(self, s: &str) {
-        self.js.encode_str(s);
-    }
-    fn i32_value(self, v: i32) {
-        self.js.encode_i32(v);
+pub trait JsonEncodable {
+    fn encode(&self, &mut JsonEncoder);
+}
+
+impl<'a> JsonEncodable for &'a str {
+    #[inline]
+    fn encode(&self, js: &mut JsonEncoder) {
+        js.encode_str(self);
     }
 }
 
+impl JsonEncodable for i32 {
+    #[inline]
+    fn encode(&self, js: &mut JsonEncoder) {
+        js.encode_i32(*self);
+    }
+}
+
+impl<'a> JsonVal<'a> {
+    #[inline]
+    fn value<T:JsonEncodable>(self, val: T) {
+        val.encode(self.js);
+    }
+
+    #[inline]
+    pub fn obj<'b>(&'b mut self) -> JsonObj<'b> {
+        JsonObj::open(self.js)
+    }
+}
+
+
 impl<'a> JsonObj<'a> {
+    #[inline]
     fn open<'b>(js: &'b mut JsonEncoder) -> JsonObj<'b> {
         js.buffer.push(b'{');
         JsonObj {js: js, elm_count: 0}
     }
 
+    #[inline]
     fn field<'b>(&'b mut self, name: &str) -> JsonVal<'b> {
         if self.elm_count > 0 {
             self.js.buffer.push_all_around2(b",\"", name.as_bytes(), b"\":");
@@ -515,6 +532,12 @@ impl<'a> JsonObj<'a> {
         JsonVal {js: self.js} 
     }
 
+    #[inline]
+    fn field_with_value<T:JsonEncodable>(&mut self, name: &str, val: T) { 
+        self.field(name).value(val);
+    }
+
+    #[inline]
     fn end(self) {
         self.js.buffer.push(b'}');
     }
@@ -641,7 +664,7 @@ fn test_json_empty_obj() {
 
     let mut js = JsonEncoder::new();
     {
-        let mut obj = js.obj();
+        let obj = js.obj();
         obj.end();
     }
 
@@ -655,7 +678,7 @@ fn test_json_single_field() {
     let mut js = JsonEncoder::new();
     {
         let mut obj = js.obj();
-        obj.field("name").str_value("hallo");
+        obj.field("name").value("hallo");
         obj.end();
         // XXX: checkpoint
     }
@@ -665,18 +688,37 @@ fn test_json_single_field() {
 
 #[test]
 fn test_json_two_fields() {
-    use std::str;
-
     let mut js = JsonEncoder::new();
     {
         let mut obj = js.obj();
-        obj.field("name").str_value("hallo");
-        obj.field("i").i32_value(123);
+        obj.field("name").value("hallo");
+        obj.field_with_value("i", 123_i32);
         obj.end();
     }
 
     assert_eq!(b"{\"name\":\"hallo\",\"i\":123}", &js.into_vec()[..]);
 }
+
+#[test]
+fn test_json_recursive_fields() {
+    use std::str;
+
+    let mut js = JsonEncoder::new();
+    {
+        let mut obj = js.obj();
+        obj.field("name").value("hallo");
+        {
+            let mut f = obj.field("o");
+            let mut obj2 = f.obj();
+            obj2.field("name").value("hallo");
+            obj2.end();
+        }
+        obj.end();
+    }
+
+    assert_eq!(&b"{\"name\":\"hallo\",\"o\":{\"name\":\"hallo\"}}"[..], &js.into_vec()[..]);
+}
+
 
 
 
