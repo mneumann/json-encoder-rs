@@ -588,6 +588,14 @@ impl<'a> JsonObjectEncoder<'a> {
         self.js
     }
 
+    pub fn to_json_obj<'b>(&'b mut self) -> JsonObj<'b> {
+        if self.needs_sep {
+            JsonObj {js: self.js, elm_count: 1 /* XXX */}
+        } else {
+            JsonObj {js: self.js, elm_count: 0 /* XXX */}
+        }
+    }
+
     // XXX: name MAY NOT include escapable characters
     #[inline]
     pub fn encode_field<F, T>(&mut self, name: &str, mut f: F) -> T where F: FnMut(&mut JsonEncoder) -> T {
