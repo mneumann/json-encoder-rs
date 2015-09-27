@@ -470,7 +470,7 @@ impl JsonEncoder {
 
     #[inline]
     pub fn obj<'a>(&'a mut self) -> JsonObj<'a> {
-        JsonObj::new(self)
+        JsonObj::open(self)
     }
 }
 
@@ -483,22 +483,46 @@ trait JsonMultivalue {
 
 pub struct JsonObj<'a> {
     js: &'a mut JsonEncoder,
-    needs_sep: bool,
-    current_buf_pos: usize,
+    elm_count: usize,
+    start_pos: usize,
+}
+
+pub struct JsonVal<'a> {
+    js: &'a mut JsonEncoder,
+}
+
+impl<'a> JsonVal<'a> {
+    fn str_value(self, s: &str) {
+        self.js.encode_str(s);
+    }
+    fn i32_value(self, v: i32) {
+        self.js.encode_i32(v);
+    }
 }
 
 impl<'a> JsonObj<'a> {
-    fn new<'b>(js: &'b mut JsonEncoder) -> JsonObj<'b> {
+    fn open<'b>(js: &'b mut JsonEncoder) -> JsonObj<'b> {
         let pos = js.buffer.get_current_position();
-        JsonObj {js: js, needs_sep: false, current_buf_pos: pos}
+        js.buffer.push(b'{');
+        JsonObj {js: js, elm_count: 0, start_pos: pos}
     }
 
-    fn open(&mut self) {
-        self.js.buffer.push(b'{');
+    fn field<'b>(&'b mut self, name: &str) -> JsonVal<'b> {
+        if self.elm_count > 0 {
+            self.js.buffer.push_all_around2(b",\"", name.as_bytes(), b"\":");
+        } else {
+            self.js.buffer.push_all_around2(b"\"", name.as_bytes(), b"\":");
+        }
+        self.elm_count += 1;
+        JsonVal {js: self.js} 
     }
 
-    fn close(&mut self) {
+    fn end(self) {
         self.js.buffer.push(b'}');
+    }
+
+    fn abort(self) {
+        self.js.buffer.set_current_position(self.start_pos);
     }
 }
 
@@ -618,20 +642,62 @@ fn test_json_obj_encoder() {
 }
 
 #[test]
-fn test_json_obj_encoder_streaming() {
+fn test_json_empty_obj() {
     use std::str;
 
     let mut js = JsonEncoder::new();
-
     {
         let mut obj = js.obj();
-        obj.open();
-        obj.close();
-        //obj.abort();
+        obj.end();
     }
 
     assert_eq!(b"{}", &js.into_vec()[..]);
 }
+
+#[test]
+fn test_json_empty_obj_abort() {
+    use std::str;
+
+    let mut js = JsonEncoder::new();
+    {
+        let mut obj = js.obj();
+        obj.abort();
+    }
+
+    assert_eq!(b"", &js.into_vec()[..]);
+}
+
+#[test]
+fn test_json_single_field() {
+    use std::str;
+
+    let mut js = JsonEncoder::new();
+    {
+        let mut obj = js.obj();
+        obj.field("name").str_value("hallo");
+        obj.end();
+        // XXX: checkpoint
+    }
+
+    assert_eq!(b"{\"name\":\"hallo\"}", &js.into_vec()[..]);
+}
+
+#[test]
+fn test_json_two_fields() {
+    use std::str;
+
+    let mut js = JsonEncoder::new();
+    {
+        let mut obj = js.obj();
+        obj.field("name").str_value("hallo");
+        obj.field("i").i32_value(123);
+        obj.end();
+    }
+
+    assert_eq!(b"{\"name\":\"hallo\",\"i\":123}", &js.into_vec()[..]);
+}
+
+
 
 #[bench]
 fn bench_encode_i32(b: &mut test::Bencher) {
