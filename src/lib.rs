@@ -548,11 +548,30 @@ impl<'a> JsonObj<'a> {
 }
 
 
+pub struct JsonVecSnapshot {
+    elm_count: usize,
+    pos: usize,
+}
+
 impl<'a> JsonVec<'a> {
     #[inline]
     fn open<'b>(js: &'b mut JsonEncoder) -> JsonVec<'b> {
         js.buffer.push(b'[');
         JsonVec {js: js, elm_count: 0}
+    }
+
+    #[inline]
+    pub fn snapshot(&self) -> JsonVecSnapshot {
+        JsonVecSnapshot {
+            elm_count: self.elm_count,
+            pos: self.js.buffer.get_current_position(),
+        }
+    }
+
+    #[inline]
+    pub fn rollback(&mut self, snapshot: JsonVecSnapshot) {
+        self.elm_count = snapshot.elm_count;
+        self.js.buffer.set_current_position(snapshot.pos);
     }
 
     #[inline]
