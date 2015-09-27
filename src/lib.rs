@@ -30,6 +30,14 @@ impl Buffer {
         Buffer{data: Vec::with_capacity(capa)}
     }
 
+    pub fn get_current_position(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn set_current_position(&mut self, pos: usize) {
+        self.data.truncate(pos);
+    }
+
     #[inline]
     pub fn clear(&mut self) {
         self.data.clear();
@@ -460,6 +468,38 @@ impl JsonEncoder {
         js.into_vec()
     }
 
+    #[inline]
+    pub fn obj<'a>(&'a mut self) -> JsonObj<'a> {
+        JsonObj::new(self)
+    }
+}
+
+/*
+trait JsonMultivalue {
+    fn beg(&mut self);
+    fn end(&mut self);
+}
+*/
+
+pub struct JsonObj<'a> {
+    js: &'a mut JsonEncoder,
+    needs_sep: bool,
+    current_buf_pos: usize,
+}
+
+impl<'a> JsonObj<'a> {
+    fn new<'b>(js: &'b mut JsonEncoder) -> JsonObj<'b> {
+        let pos = js.buffer.get_current_position();
+        JsonObj {js: js, needs_sep: false, current_buf_pos: pos}
+    }
+
+    fn open(&mut self) {
+        self.js.buffer.push(b'{');
+    }
+
+    fn close(&mut self) {
+        self.js.buffer.push(b'}');
+    }
 }
 
 pub struct JsonObjectEncoder<'a> {
@@ -575,6 +615,22 @@ fn test_json_obj_encoder() {
 
     let json = JsonEncoder::obj_single_str_field("total", "");
     assert_eq!(b"{\"total\":\"\"}", &json[..]);
+}
+
+#[test]
+fn test_json_obj_encoder_streaming() {
+    use std::str;
+
+    let mut js = JsonEncoder::new();
+
+    {
+        let mut obj = js.obj();
+        obj.open();
+        obj.close();
+        //obj.abort();
+    }
+
+    assert_eq!(b"{}", &js.into_vec()[..]);
 }
 
 #[bench]
